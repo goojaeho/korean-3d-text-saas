@@ -1,0 +1,43 @@
+# 운영체제 파일
+.DS_Store
+Thumbs.db
+
+# IDE 파일
+.vscode/
+.vscode-server/
+.idea/
+*.swp
+*.swo
+
+# 로그 파일
+*.log
+
+# 환경 설정 파일
+.env
+.env.local
+
+# 의존성 폴더
+node_modules/
+__pycache__/
+*.pyc
+
+# 빌드 파일
+dist/
+build/
+
+# Claude 설정 파일
+.claude/
+.claude.json*
+.cache/
+
+# 기타 시스템 파일
+.bash_history
+.sudo_as_admin_successful
+.motd_shown
+.profile
+.bashrc
+.bash_logout
+.config/
+.dotnet/
+.npm/
+.gitconfig
