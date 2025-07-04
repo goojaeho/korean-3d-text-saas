@@ -13,6 +13,9 @@
 ### 대상 사용자
 
 - 간판 디자이너
+- 로고 디자이너  
+- 마케팅 담당자
+- 일반 사용자 (개인 프로젝트)
 
 ## 🎯 핵심 기능
 
@@ -604,6 +607,298 @@ const TextEditor = dynamic(() => import('@/components/editor/TextEditor'), {
   ]
 }
 ```
+
+## 📋 개발 가이드라인 및 코딩 규칙
+
+### 🎯 코딩 선호도 - "이렇게 코드를 작성하세요"
+
+#### 단순성 원칙 (Simplicity First)
+
+- 복잡성보다 가장 간단한 솔루션을 항상 우선시하세요
+- 3중 중첩 if문 대신 early return 사용
+- 복잡한 로직보다 명확한 로직 우선
+- 과도한 최적화보다 읽기 쉬운 코드 우선
+
+```typescript
+// ❌ 복잡한 방식
+function validateUser(user: User) {
+  if (user) {
+    if (user.email) {
+      if (user.email.includes('@')) {
+        return true
+      } else {
+        return false
+      }
+    } else {
+      return false
+    }
+  } else {
+    return false
+  }
+}
+
+// ✅ 간단한 방식
+function validateUser(user: User) {
+  if (!user) return false
+  if (!user.email) return false
+  return user.email.includes('@')
+}
+```
+
+#### 중복 없음 원칙 (DRY - Don't Repeat Yourself)
+
+- 코드 반복을 피하고, 가능한 경우 기존 기능을 재사용하세요
+- 공통 로직은 utils 함수로 분리
+- 반복되는 UI 패턴은 컴포넌트로 분리
+- 타입 정의 중복 제거
+
+```typescript
+// ❌ 중복 코드
+const saveProject = async (project: Project) => {
+  setLoading(true)
+  try {
+    const response = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(project)
+    })
+    if (!response.ok) throw new Error('Failed to save')
+    return response.json()
+  } catch (error) {
+    console.error(error)
+    throw error
+  } finally {
+    setLoading(false)
+  }
+}
+
+// ✅ 재사용 가능한 함수
+const apiCall = async (endpoint: string, options: RequestInit) => {
+  const response = await fetch(endpoint, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  })
+  if (!response.ok) throw new Error(`API call failed: ${response.status}`)
+  return response.json()
+}
+
+const saveProject = (project: Project) => 
+  apiCall('/api/projects', { method: 'POST', body: JSON.stringify(project) })
+```
+
+#### 조직화 원칙 (File Organization)
+
+- 파일을 간결하게 유지하고, 200-300줄 이내로 하며, 필요에 따라 리팩토링하세요
+- 한 파일에 하나의 주요 관심사만 다루기
+- 300줄 초과 시 분할 고려
+- 관련 기능끼리 그룹화
+
+```typescript
+// ❌ 너무 큰 파일 (500줄+)
+// TextEditor.tsx - 모든 기능이 하나의 파일에
+
+// ✅ 분할된 파일들
+// TextEditor.tsx (메인 컴포넌트, 150줄)
+// TextControls.tsx (컨트롤 패널, 120줄)
+// TextCanvas.tsx (3D 캔버스, 180줄)
+// TextPresets.tsx (프리셋 관리, 80줄)
+```
+
+#### 문서화 원칙 (Documentation)
+
+- 주요 구성 요소 개발 후에는 /docs/[component].md에 간략한 요약을 작성하세요
+- 복잡한 로직에는 주석 추가
+- API 함수에는 JSDoc 주석
+- 컴포넌트 props에는 타입 주석
+
+```typescript
+/**
+ * 3D 텍스트를 렌더링하는 컴포넌트
+ * @param text - 렌더링할 텍스트
+ * @param config - 3D 텍스트 설정 (색상, 크기, 애니메이션 등)
+ * @param onTextChange - 텍스트 변경 시 호출되는 콜백
+ */
+interface TextRendererProps {
+  text: string
+  config: TextConfig
+  onTextChange?: (text: string) => void
+}
+```
+
+### 🛠️ 기술 스택 규칙 - "이런 도구를 사용하세요"
+
+#### Frontend 규칙
+
+- React 19 + TypeScript로만 작성
+- Next.js 15.1 App Router만 사용 (Pages Router 금지)
+- TailwindCSS로만 스타일링 (CSS-in-JS 금지)
+- Zustand로 클라이언트 상태 관리 (Redux 금지)
+- TanStack Query로 서버 상태 관리 (SWR 금지)
+
+#### Backend 규칙
+
+- Vercel Serverless Functions로만 API 작성 (Express 서버 금지)
+- TypeScript로만 작성 (JavaScript 금지)
+- Prisma ORM으로만 데이터베이스 접근 (직접 SQL 최소화)
+- Next-Auth 5.0으로만 인증 처리 (커스텀 JWT 금지)
+
+#### 3D 렌더링 규칙
+
+- Three.js r178 + Troika-three-text로만 구현 (다른 3D 라이브러리 금지)
+- 디바운싱 패턴으로 성능 최적화 (실시간 렌더링 금지)
+- 메모리 정리 패턴 필수 구현 (메모리 누수 방지)
+
+#### 파일 저장 규칙
+
+- Vercel Blob으로만 파일 저장 (AWS S3 금지)
+- 파일 업로드 시 타입 검증 필수
+- 파일 크기 제한 구현 필수
+
+#### 스타일링 규칙
+
+- TailwindCSS 유틸리티 클래스만 사용
+- 커스텀 CSS는 globals.css에만 작성
+- 인라인 스타일 사용 금지
+- CSS 모듈 사용 금지
+
+### 🚫 금지사항
+
+#### 절대 사용하지 말 것
+
+- jQuery - React와 충돌
+- Bootstrap - TailwindCSS와 충돌
+- Moment.js - 용량 크고 deprecated
+- Lodash - 필요한 함수만 개별 구현
+- Styled-components - TailwindCSS 사용
+- MaterialUI - 커스텀 UI 구축
+
+#### 제한적 사용
+
+- useEffect - 최소한으로만 사용
+- any 타입 - 정말 필요한 경우에만
+- console.log - 개발 중에만, 프로덕션에서 제거
+- setTimeout/setInterval - 메모리 누수 주의
+
+### 📝 네이밍 규칙
+
+#### 파일명 규칙
+
+```
+// 컴포넌트 파일
+TextEditor.tsx
+UserProfile.tsx
+ProjectCard.tsx
+
+// 훅 파일
+useProjects.ts
+useAuth.ts
+useLocalStorage.ts
+
+// 유틸리티 파일
+apiClient.ts
+formatters.ts
+validators.ts
+
+// 타입 파일
+types.ts
+models.ts
+api.ts
+```
+
+#### 변수명 규칙
+
+```typescript
+// 상수 - UPPER_SNAKE_CASE
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+const API_ENDPOINTS = {
+  PROJECTS: '/api/projects',
+  AUTH: '/api/auth'
+}
+
+// 변수/함수 - camelCase
+const userProjects = []
+const handleSubmit = () => {}
+const isLoading = false
+
+// 컴포넌트 - PascalCase
+const TextEditor = () => {}
+const UserProfile = () => {}
+
+// 타입/인터페이스 - PascalCase
+interface User {}
+type ProjectStatus = 'draft' | 'published'
+```
+
+### 🎯 성능 규칙
+
+#### 필수 최적화
+
+- React.memo() 사용 - 불필요한 리렌더링 방지
+- useMemo/useCallback - 비용 높은 계산 캐싱
+- 동적 import - 코드 스플리팅
+- 이미지 최적화 - next/image 사용
+- 폰트 최적화 - next/font 사용
+
+#### 금지된 패턴
+
+```typescript
+// ❌ 컴포넌트 내부에서 객체 생성
+const MyComponent = () => {
+  return <div style={{ color: 'red' }} /> // 매번 새 객체 생성
+}
+
+// ✅ 외부에서 객체 생성
+const styles = { color: 'red' }
+const MyComponent = () => {
+  return <div style={styles} />
+}
+```
+
+### 📚 문서화 규칙
+
+#### 필수 문서
+
+- /docs/components/ - 주요 컴포넌트별 문서
+- /docs/api/ - API 엔드포인트별 문서
+- /docs/hooks/ - 커스텀 훅별 문서
+- /docs/architecture/ - 아키텍처 결정 문서
+
+#### 문서 템플릿
+
+```markdown
+# ComponentName
+
+## 목적
+이 컴포넌트의 역할과 사용 목적
+
+## 사용법
+```tsx
+<ComponentName prop1="value" prop2={data} />
+```
+
+## Props
+
+- prop1: 설명
+- prop2: 설명
+
+## 예시
+실제 사용 예시 코드
+
+## 주의사항
+사용 시 주의해야 할 점
+```
+
+### 🔍 코드 리뷰 체크리스트
+
+#### 필수 확인사항
+
+- [ ] 파일 크기 300줄 이하인가?
+- [ ] 중복 코드가 없는가?
+- [ ] 타입 정의가 정확한가?
+- [ ] 에러 처리가 구현되어 있는가?
+- [ ] 성능 최적화가 적용되어 있는가?
+- [ ] 네이밍 규칙을 따르고 있는가?
+- [ ] 문서화가 되어 있는가?
 
 ## 🔧 기술 요구사항
 

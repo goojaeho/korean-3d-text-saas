@@ -1,0 +1,32 @@
+{
+  "name": "@korean-3d-text/ui",
+  "version": "1.0.0",
+  "description": "Korean 3D Text SaaS UI 컴포넌트 라이브러리",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": ["ui", "components", "react", "typescript"],
+  "author": "Korean 3D Text Team",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=19.0.0",
+    "react-dom": ">=19.0.0"
+  },
+  "dependencies": {
+    "clsx": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
+}

@@ -1,0 +1,205 @@
+// Prisma Schema for Korean 3D Text SaaS
+// 단순하고 명확한 구조로 설계
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 사용자 플랜 정의
+enum UserPlan {
+  FREE        // 무료 플랜 (월 10개 프로젝트)
+  PRO         // 프로 플랜 (월 100개 프로젝트)
+  ENTERPRISE  // 엔터프라이즈 플랜 (무제한 + 팀 기능)
+}
+
+// 애니메이션 타입 정의
+enum AnimationType {
+  rotate    // Y축 회전 + 가벼운 흔들림
+  float     // 위아래 플로팅 + Z축 회전
+  pulse     // 크기 변화 + 회전 조합
+  wave      // X축, Y축 웨이브 모션
+}
+
+// 내보내기 형식 정의
+enum ExportFormat {
+  PNG       // PNG 이미지
+  PDF       // PDF 문서
+}
+
+// 사용량 타입 정의
+enum UsageType {
+  PROJECT_CREATE  // 프로젝트 생성
+  EXPORT_HD       // HD 내보내기
+  EXPORT_4K       // 4K 내보내기
+}
+
+// 구독 상태 정의
+enum SubscriptionStatus {
+  ACTIVE          // 활성 구독
+  CANCELED        // 취소된 구독
+  PAST_DUE        // 결제 연체
+  UNPAID          // 미결제
+  INCOMPLETE      // 불완전한 구독
+}
+
+// 사용자 모델
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String    // 해시된 비밀번호
+  emailVerified DateTime? // 이메일 인증 날짜
+  plan          UserPlan  @default(FREE)
+  credits       Int       @default(10)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // 관계
+  projects      Project[]
+  templates     TextTemplate[]
+  usages        Usage[]
+  subscription  Subscription?
+  
+  @@map("users")
+}
+
+// 프로젝트 모델
+model Project {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  
+  // 3D 텍스트 설정 (JSON으로 저장)
+  textContent  Json
+  
+  // 썸네일 URL (선택적)
+  thumbnailUrl String?
+  
+  // 공개 설정
+  isPublic     Boolean   @default(false)
+  
+  // 소유자 관계
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // 타임스탬프
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  // 관계
+  exports      ProjectExport[]
+  
+  @@map("projects")
+}
+
+// 프로젝트 내보내기 기록
+model ProjectExport {
+  id         String       @id @default(cuid())
+  format     ExportFormat
+  fileUrl    String?      // Vercel Blob URL
+  fileSize   Int?         // 파일 크기 (bytes)
+  
+  // 내보내기 설정
+  width      Int          @default(1920)
+  height     Int          @default(1080)
+  quality    Int          @default(100)   // 1-100
+  
+  // 프로젝트 관계
+  projectId  String
+  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // 타임스탬프
+  createdAt  DateTime     @default(now())
+  
+  @@map("project_exports")
+}
+
+// 사용자 활동 로그 (단순한 추적용)
+model UserActivity {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // 'create_project', 'export_project', 'upgrade_plan' 등
+  metadata  Json?    // 추가 정보
+  createdAt DateTime @default(now())
+  
+  @@map("user_activities")
+}
+
+// 텍스트 템플릿 모델
+model TextTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  
+  // 템플릿 설정 (JSON으로 저장)
+  config      Json     // 폰트, 색상, 애니메이션 설정
+  
+  // 카테고리 분류
+  category    String   // 'business', 'creative', 'personal' 등
+  
+  // 공개 설정
+  isPublic    Boolean  @default(false)
+  
+  // 사용량 통계
+  usageCount  Int      @default(0) @map("usage_count")
+  
+  // 소유자 관계
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // 타임스탬프
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("text_templates")
+}
+
+// 사용량 추적 모델
+model Usage {
+  id       String    @id @default(cuid())
+  
+  // 사용자 관계
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // 사용량 정보
+  action   UsageType // PROJECT_CREATE, EXPORT_HD, EXPORT_4K
+  date     DateTime  @default(now())
+  metadata Json?     // 추가 정보 (프로젝트 ID, 파일 크기 등)
+  
+  @@map("usages")
+}
+
+// 구독 모델
+model Subscription {
+  id                    String             @id @default(cuid())
+  
+  // 사용자 관계 (1:1)
+  userId                String             @unique
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Stripe 정보
+  stripeCustomerId      String             @unique @map("stripe_customer_id")
+  stripeSubscriptionId  String             @unique @map("stripe_subscription_id")
+  
+  // 구독 상태
+  status                SubscriptionStatus @default(ACTIVE)
+  
+  // 구독 기간
+  currentPeriodStart    DateTime           @map("current_period_start")
+  currentPeriodEnd      DateTime           @map("current_period_end")
+  
+  // 취소 설정
+  cancelAtPeriodEnd     Boolean            @default(false) @map("cancel_at_period_end")
+  
+  // 타임스탬프
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  
+  @@map("subscriptions")
+}

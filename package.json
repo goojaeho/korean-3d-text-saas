@@ -1,0 +1,60 @@
+{
+  "name": "korean-3d-text-saas",
+  "version": "1.0.0",
+  "description": "Korean 3D Text SaaS - 한글 3D 텍스트 생성 플랫폼",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "build:check": "node scripts/build-checks.js",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "type-check": "turbo run type-check",
+    "test": "turbo run test",
+    "test:watch": "turbo run test -- --watch",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "guidelines:check": "node scripts/check-guidelines.js",
+    "docs:generate": "node scripts/generate-docs.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:pull": "prisma db pull",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset",
+    "db:seed": "tsx prisma/seed.ts",
+    "prepare": "husky install || true"
+  },
+  "devDependencies": {
+    "eslint": "^9.30.1",
+    "husky": "^8.0.0",
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.4",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "npm@10.2.4",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "3d-text",
+    "korean",
+    "saas",
+    "nextjs",
+    "react",
+    "typescript",
+    "threejs"
+  ],
+  "author": "Korean 3D Text Team",
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^6.10.0",
+    "prisma": "^6.10.0"
+  }
+}

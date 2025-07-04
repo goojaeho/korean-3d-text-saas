@@ -1,0 +1,28 @@
+{
+  "name": "@korean-3d-text/types",
+  "version": "1.0.0",
+  "description": "Korean 3D Text SaaS 공통 타입 정의",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "types",
+    "typescript",
+    "korean-3d-text"
+  ],
+  "author": "Korean 3D Text Team",
+  "license": "MIT",
+  "devDependencies": {
+    "tsx": "^4.20.3",
+    "typescript": "^5.7.0"
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
+}

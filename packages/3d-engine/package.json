@@ -1,0 +1,32 @@
+{
+  "name": "@korean-3d-text/3d-engine",
+  "version": "1.0.0",
+  "description": "Korean 3D Text SaaS 3D 렌더링 엔진",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "3d",
+    "threejs",
+    "rendering",
+    "korean-text"
+  ],
+  "author": "Korean 3D Text Team",
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.160.0",
+    "typescript": "^5.7.0"
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
+}

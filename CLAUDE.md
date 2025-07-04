@@ -92,6 +92,16 @@ korean-3d-text-saas/
 - **직관적 인터페이스**: 초보자도 쉽게 사용
 - **반응형 디자인**: 모든 디바이스 대응
 
+### 4. 코드 작성 규칙
+- **DRY 원칙**: 코드 중복 방지, 공통 로직 분리
+- **Early Return**: 3중 중첩 if문 대신 사용
+- **네이밍 규칙**: camelCase, PascalCase, UPPER_SNAKE_CASE 준수
+- **문서화**: JSDoc 주석 및 /docs/ 폴더 문서
+
+### 5. 금지사항
+- **절대 금지**: jQuery, Bootstrap, Moment.js, Lodash, Styled-components
+- **제한적 사용**: useEffect, any 타입, console.log, setTimeout/setInterval
+
 ## 🔧 개발 명령어
 
 ```bash
@@ -113,6 +123,25 @@ npm run lint
 # 포맷팅
 npm run format
 ```
+
+## 🛠️ 기술 스택 규칙
+
+### Frontend 필수 사용
+- **React 19 + TypeScript**: JavaScript 금지
+- **Next.js 15.1 App Router**: Pages Router 금지
+- **TailwindCSS**: CSS-in-JS 금지
+- **Zustand**: Redux 금지
+- **TanStack Query**: SWR 금지
+
+### Backend 필수 사용
+- **Vercel Serverless Functions**: Express 서버 금지
+- **Prisma ORM**: 직접 SQL 최소화
+- **Next-Auth 5.0**: 커스텀 JWT 금지
+
+### 3D 렌더링 필수 사용
+- **Three.js r178 + Troika-three-text**: 다른 3D 라이브러리 금지
+- **디바운싱 패턴**: 실시간 렌더링 금지
+- **메모리 정리 패턴**: 메모리 누수 방지 필수
 
 ## 📝 커밋 메시지 규칙
 
