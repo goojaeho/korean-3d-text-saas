@@ -1,5 +1,6 @@
 import { DynamicThreeCanvas } from '@/components/editor/DynamicThreeCanvas';
 import { Controls } from '@/components/editor/Controls';
+import { DebugInfo } from '@/components/editor/DebugInfo';
 
 /**
  * 3D 텍스트 에디터 페이지
@@ -131,6 +132,9 @@ export default function EditorPage() {
           </div>
         </div>
       </main>
+      
+      {/* Debug Info (development only) */}
+      {process.env.NODE_ENV === 'development' && <DebugInfo />}
     </div>
   );
 }

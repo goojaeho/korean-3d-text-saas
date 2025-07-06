@@ -44,10 +44,10 @@ interface EditorState {
  * 기본값 설정
  */
 const defaultState = {
-  text: 'HELLO',
+  text: '안녕하세요',
   color: '#3b82f6', // Tailwind blue-500
   fontSize: 4, // 4px로 더 작게 변경
-  fontFamily: 'sans-serif', // 기본 시스템 폰트
+  fontFamily: 'cookierun-bold', // CookieRun Bold를 기본 폰트로 설정
   depth: 0.5, // 기본 두께로 시작
   rotation: { x: 0, y: 0, z: 0 }, // 기본 회전각
   isLoading: false,
@@ -142,6 +142,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
  * 선택 가능한 폰트 목록 (TextGeometry 지원)
  */
 export const AVAILABLE_FONTS = [
+  'cookierun-bold',
+  'nanum-gothic',
+  'noto-sans-kr',
   'helvetiker',
   'optimer',
   'sans-serif',

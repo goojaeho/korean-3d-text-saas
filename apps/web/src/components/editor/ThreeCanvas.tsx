@@ -71,6 +71,9 @@ export function ThreeCanvas({
       console.log('Creating new text mesh...');
       const newTextMesh = await textRendererRef.current.updateText(config);
       console.log('New text mesh created:', newTextMesh);
+      console.log('Mesh type:', newTextMesh.type);
+      console.log('Mesh userData:', newTextMesh.userData);
+      console.log('Mesh children:', newTextMesh.children);
       
       // 씬에 추가
       sceneManagerRef.current.addObject(newTextMesh);
@@ -161,25 +164,6 @@ export function ThreeCanvas({
     mouseState.current.lastY = event.clientY;
   }, [rotation, setRotation]);
 
-  /**
-   * 마우스 휠 이벤트 (카메라 줌)
-   */
-  const handleWheel = useCallback((event: React.WheelEvent) => {
-    event.preventDefault(); // 기본 스크롤 방지
-    
-    if (!sceneManagerRef.current) return;
-
-    // 휠 델타값으로 줌 제어
-    const delta = event.deltaY;
-    sceneManagerRef.current.zoomCamera(delta);
-    
-    // 카메라 거리 상태 업데이트
-    const newDistance = sceneManagerRef.current.getCameraDistance();
-    setCameraDistance(newDistance);
-    
-    // 즉시 렌더링
-    render();
-  }, [render]);
 
   /**
    * 3D 씬 초기화
@@ -236,6 +220,45 @@ export function ThreeCanvas({
   }, []);
 
   /**
+   * 네이티브 휠 이벤트 처리 (카메라 줌과 스크롤 방지)
+   */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleNativeWheel = (event: WheelEvent) => {
+      // 브라우저 기본 스크롤 방지
+      event.preventDefault();
+      event.stopPropagation();
+      
+      // 카메라 줌 로직을 네이티브 이벤트에서 직접 처리
+      if (!sceneManagerRef.current) return;
+
+      // 휠 델타값으로 줌 제어
+      const delta = event.deltaY;
+      sceneManagerRef.current.zoomCamera(delta);
+      
+      // 카메라 거리 상태 업데이트
+      const newDistance = sceneManagerRef.current.getCameraDistance();
+      setCameraDistance(newDistance);
+      
+      // 즉시 렌더링
+      if (sceneManagerRef.current) {
+        sceneManagerRef.current.render();
+      }
+      
+      console.log('Native camera zoom applied, distance:', newDistance.toFixed(1));
+    };
+
+    // 패시브가 아닌 이벤트 리스너로 등록
+    canvas.addEventListener('wheel', handleNativeWheel, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('wheel', handleNativeWheel);
+    };
+  }, []);
+
+  /**
    * 컴포넌트 마운트 시 초기화
    */
   useEffect(() => {
@@ -278,6 +301,8 @@ export function ThreeCanvas({
     const textMesh = textRendererRef.current.getTextMesh();
     if (textMesh) {
       console.log('Updating text rotation:', rotation);
+      
+      // 컨테이너 메시의 회전 업데이트
       textMesh.rotation.set(rotation.x, rotation.y, rotation.z);
       
       // 성능 최적화: 직접 렌더링
@@ -322,7 +347,6 @@ export function ThreeCanvas({
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseUp} // 마우스가 캔버스를 벗어나면 드래그 종료
-        onWheel={handleWheel} // 마우스 휠로 카메라 줌
       />
       
       {/* 로딩 오버레이 */}
