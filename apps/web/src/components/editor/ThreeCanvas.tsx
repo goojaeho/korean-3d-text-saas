@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { SceneManager, TextRenderer } from '@korean-3d-text/3d-engine';
 import { useEditorStore } from '@/stores/editorStore';
 
@@ -27,6 +27,7 @@ export function ThreeCanvas({
   const sceneManagerRef = useRef<SceneManager | null>(null);
   const textRendererRef = useRef<TextRenderer | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const [cameraDistance, setCameraDistance] = useState(5); // 카메라 거리 상태
 
   // Zustand 스토어에서 상태 구독
   const { 
@@ -159,6 +160,26 @@ export function ThreeCanvas({
     mouseState.current.lastX = event.clientX;
     mouseState.current.lastY = event.clientY;
   }, [rotation, setRotation]);
+
+  /**
+   * 마우스 휠 이벤트 (카메라 줌)
+   */
+  const handleWheel = useCallback((event: React.WheelEvent) => {
+    event.preventDefault(); // 기본 스크롤 방지
+    
+    if (!sceneManagerRef.current) return;
+
+    // 휠 델타값으로 줌 제어
+    const delta = event.deltaY;
+    sceneManagerRef.current.zoomCamera(delta);
+    
+    // 카메라 거리 상태 업데이트
+    const newDistance = sceneManagerRef.current.getCameraDistance();
+    setCameraDistance(newDistance);
+    
+    // 즉시 렌더링
+    render();
+  }, [render]);
 
   /**
    * 3D 씬 초기화
@@ -301,6 +322,7 @@ export function ThreeCanvas({
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseUp} // 마우스가 캔버스를 벗어나면 드래그 종료
+        onWheel={handleWheel} // 마우스 휠로 카메라 줌
       />
       
       {/* 로딩 오버레이 */}
@@ -315,7 +337,9 @@ export function ThreeCanvas({
 
       {/* 캔버스 정보 (개발용) */}
       <div className="absolute top-2 left-2 text-xs text-gray-500 bg-white/80 px-2 py-1 rounded">
-        {width} × {height}px
+        <div>{width} × {height}px</div>
+        <div>카메라: {cameraDistance.toFixed(1)}m</div>
+        <div className="text-gray-400 mt-1">휠: 줌 / 드래그: 회전</div>
       </div>
     </div>
   );

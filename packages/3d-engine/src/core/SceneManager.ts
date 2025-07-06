@@ -201,6 +201,38 @@ export class SceneManager {
   }
 
   /**
+   * 카메라 줌 인/아웃
+   * @param delta 휠 델타값 (양수: 줌인, 음수: 줌아웃)
+   */
+  public zoomCamera(delta: number): void {
+    const zoomSpeed = 0.5;
+    const minDistance = 1;
+    const maxDistance = 20;
+    
+    // 현재 카메라 위치
+    const currentZ = this.camera.position.z;
+    
+    // 새로운 Z 위치 계산
+    let newZ = currentZ + (delta > 0 ? zoomSpeed : -zoomSpeed);
+    
+    // 범위 제한
+    newZ = Math.max(minDistance, Math.min(maxDistance, newZ));
+    
+    // 카메라 위치 업데이트
+    this.camera.position.z = newZ;
+    
+    console.log(`Camera zoom: ${currentZ.toFixed(1)} -> ${newZ.toFixed(1)}`);
+  }
+
+  /**
+   * 카메라 거리 가져오기
+   * @returns 현재 카메라 Z 거리
+   */
+  public getCameraDistance(): number {
+    return this.camera.position.z;
+  }
+
+  /**
    * 현재 씬을 이미지로 내보내기
    * @param format 이미지 형식
    * @param quality 품질 (0-1)
