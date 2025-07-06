@@ -12,13 +12,60 @@ export class AnimationController {
   private isAnimating = false;
   private startTime = 0;
   private currentAnimation: AnimationType | null = null;
-  private targetObject: THREE.Object3D | null = null;
-  private originalPosition = new THREE.Vector3();
-  private originalRotation = new THREE.Euler();
-  private originalScale = new THREE.Vector3();
+  private targetObject: any = null; // THREE.Object3D
+  private originalPosition: any = null; // THREE.Vector3
+  private originalRotation: any = null; // THREE.Euler
+  private originalScale: any = null; // THREE.Vector3
+  private isInitialized = false;
 
   constructor() {
-    // 생성자는 간단하게 유지
+    this.initializeAnimationController();
+  }
+
+  /**
+   * AnimationController 초기화
+   */
+  private initializeAnimationController(): void {
+    console.log('🚀 AnimationController initializing...');
+    
+    try {
+      // Three.js 객체들 초기화
+      this.originalPosition = new THREE.Vector3();
+      this.originalRotation = new THREE.Euler();
+      this.originalScale = new THREE.Vector3();
+      console.log('✅ AnimationController initialized successfully');
+      
+      this.isInitialized = true;
+    } catch (error) {
+      console.error('❌ AnimationController initialization failed:', error);
+      this.isInitialized = true; // 실패해도 진행
+    }
+  }
+
+  /**
+   * 초기화 완료 대기
+   */
+  public waitForInitialization(): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.isInitialized) {
+        resolve();
+        return;
+      }
+
+      const checkInterval = setInterval(() => {
+        if (this.isInitialized) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+
+      // 5초 타임아웃
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        console.warn('AnimationController initialization timeout');
+        resolve();
+      }, 5000);
+    });
   }
 
   /**
@@ -26,18 +73,31 @@ export class AnimationController {
    * @param object 애니메이션할 3D 객체
    * @param animationType 애니메이션 타입
    */
-  public startAnimation(object: THREE.Object3D, animationType: AnimationType): void {
+  public startAnimation(object: any, animationType: AnimationType): void {
+    // 초기화 확인
+    if (!this.isInitialized) {
+      console.warn('⚠️ AnimationController not initialized yet');
+      return;
+    }
+
     if (this.isAnimating) {
       this.stopAnimation();
     }
 
-    this.targetObject = object;
+    // 실제 애니메이션 대상 찾기 (textGroup이 있으면 그것을 사용)
+    let animationTarget = object;
+    if (object.userData && object.userData.textGroup) {
+      animationTarget = object.userData.textGroup as THREE.Object3D;
+      console.log('Using textGroup for animation');
+    }
+
+    this.targetObject = animationTarget;
     this.currentAnimation = animationType;
     
     // 원본 변환값 저장
-    this.originalPosition.copy(object.position);
-    this.originalRotation.copy(object.rotation);
-    this.originalScale.copy(object.scale);
+    this.originalPosition.copy(animationTarget.position);
+    this.originalRotation.copy(animationTarget.rotation);
+    this.originalScale.copy(animationTarget.scale);
 
     this.isAnimating = true;
     this.startTime = performance.now();

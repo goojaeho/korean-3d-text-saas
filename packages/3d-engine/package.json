@@ -18,11 +18,11 @@
   ],
   "author": "Korean 3D Text Team",
   "license": "MIT",
-  "dependencies": {
-    "three": "^0.160.0"
+  "peerDependencies": {
+    "three": "^0.178.0"
   },
   "devDependencies": {
-    "@types/three": "^0.160.0",
+    "@types/three": "^0.178.0",
     "typescript": "^5.7.0"
   },
   "files": [

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-
-// FontLoader와 TextGeometry를 동적으로 import하여 타입 문제 해결
-// 타입 정의는 런타임에 동적으로 로드
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { TTFLoader } from 'three/addons/loaders/TTFLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 
 /**
  * 3D 텍스트 설정 타입
@@ -19,7 +19,7 @@ export interface TextConfig {
 
 /**
  * 3D 텍스트 렌더링 클래스
- * Three.js TextGeometry를 사용한 진짜 3D 텍스트 렌더링
+ * Three.js r178 + FontLoader + TextGeometry 사용
  * 디바운싱 패턴 적용으로 성능 최적화
  */
 export class TextRenderer {
@@ -28,82 +28,58 @@ export class TextRenderer {
   private isLoading = false;
   private debounceTimer: number | null = null;
   private readonly DEBOUNCE_DELAY = 100; // 0.1초 지연
-  private fontLoader: any;
+  private fontLoader: FontLoader;
+  private ttfLoader: TTFLoader;
   private loadedFonts: Map<string, any> = new Map();
-  private FontLoader: any;
-  private TextGeometry: any;
   private isInitialized = false;
 
   constructor() {
-    this.initializeLoaders();
+    this.fontLoader = new FontLoader();
+    this.ttfLoader = new TTFLoader();
+    this.initializeRenderer();
   }
 
   /**
-   * 로더들 초기화 (CDN 방식)
+   * 렌더러 초기화
    */
-  private async initializeLoaders(): Promise<void> {
+  private async initializeRenderer(): Promise<void> {
+    console.log('🚀 TextRenderer initializing with Three.js r178...');
+    
     try {
-      // CDN에서 Three.js examples 스크립트 로드
-      await this.loadThreeExamples();
-      
-      // FontLoader와 TextGeometry 글로벌에서 가져오기
-      const THREE_GLOBAL = (globalThis as any).THREE || (window as any).THREE;
-      
-      if (THREE_GLOBAL && THREE_GLOBAL.FontLoader && THREE_GLOBAL.TextGeometry) {
-        this.FontLoader = THREE_GLOBAL.FontLoader;
-        this.TextGeometry = THREE_GLOBAL.TextGeometry;
-        this.fontLoader = new this.FontLoader();
-        
-        await this.preloadFonts();
-        this.isInitialized = true;
-        console.log('TextRenderer initialized successfully');
-      } else {
-        // Fallback: 간단한 구현으로 대체
-        throw new Error('Three.js examples not available, using fallback');
-      }
+      // 폰트 사전 로드
+      await this.preloadFonts();
+      this.isInitialized = true;
+      console.log('✅ TextRenderer initialized successfully');
     } catch (error) {
-      console.warn('Failed to initialize Three.js examples, using fallback:', error);
-      await this.initializeFallback();
+      console.error('❌ TextRenderer initialization failed:', error);
+      this.isInitialized = true; // 실패해도 진행 (fallback 사용)
     }
   }
 
   /**
-   * Three.js examples CDN 로드
+   * 초기화 완료 대기
    */
-  private loadThreeExamples(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      // 이미 로드되었는지 확인
-      if ((globalThis as any).THREE?.FontLoader) {
+  public waitForInitialization(): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.isInitialized) {
         resolve();
         return;
       }
 
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/three@0.160.0/examples/js/loaders/FontLoader.js';
-      script.onload = () => {
-        const script2 = document.createElement('script');
-        script2.src = 'https://unpkg.com/three@0.160.0/examples/js/geometries/TextGeometry.js';
-        script2.onload = () => resolve();
-        script2.onerror = () => reject(new Error('Failed to load TextGeometry'));
-        document.head.appendChild(script2);
-      };
-      script.onerror = () => reject(new Error('Failed to load FontLoader'));
-      document.head.appendChild(script);
-    });
-  }
+      const checkInterval = setInterval(() => {
+        if (this.isInitialized) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
 
-  /**
-   * Fallback 초기화 (간단한 박스 지오메트리 사용)
-   */
-  private async initializeFallback(): Promise<void> {
-    console.log('Using fallback text renderer');
-    
-    // 간단한 박스로 텍스트 대체
-    this.FontLoader = null;
-    this.TextGeometry = THREE.BoxGeometry;
-    this.fontLoader = null;
-    
-    this.isInitialized = true;
+      // 5초 타임아웃
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        console.warn('TextRenderer initialization timeout, using fallback mode');
+        resolve();
+      }, 5000);
+    });
   }
 
   /**
@@ -127,20 +103,60 @@ export class TextRenderer {
         const font = await this.loadFont(fontInfo.url);
         this.loadedFonts.set(fontInfo.name, font);
         loadedCount++;
-        console.log(`Font ${fontInfo.name} loaded successfully`);
+        console.log(`✅ Font ${fontInfo.name} loaded successfully`);
       } catch (error) {
-        console.warn(`Failed to load font ${fontInfo.name}:`, error);
+        console.warn(`❌ Failed to load font ${fontInfo.name}:`, error);
       }
     });
 
     await Promise.allSettled(loadPromises);
     
     if (loadedCount === 0) {
-      console.error('No fonts could be loaded! 3D text rendering will fail.');
-      throw new Error('Font loading failed completely');
+      console.error('❌ No fonts could be loaded! 3D text rendering will use fallback.');
     } else {
-      console.log(`Successfully loaded ${loadedCount}/${defaultFonts.length} fonts`);
+      console.log(`✅ Successfully loaded ${loadedCount}/${defaultFonts.length} fonts`);
     }
+  }
+
+  /**
+   * TTF 폰트 로드
+   * @param ttfUrl TTF 폰트 URL
+   * @returns Promise<any>
+   */
+  private loadTTFFont(ttfUrl: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      const attemptLoad = () => {
+        this.ttfLoader.load(
+          ttfUrl,
+          (fontData: any) => {
+            console.log(`✅ TTF Font loaded successfully: ${ttfUrl}`);
+            // TTF 데이터를 FontLoader로 파싱
+            const font = this.fontLoader.parse(fontData);
+            resolve(font);
+          },
+          (progress: ProgressEvent) => {
+            console.log(`📥 Loading TTF font ${ttfUrl}: ${(progress.loaded / progress.total * 100).toFixed(1)}%`);
+          },
+          (err: unknown) => {
+            const error = err as Error;
+            console.warn(`❌ TTF Font load attempt ${retryCount + 1} failed for ${ttfUrl}:`, error);
+            
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`🔄 Retrying TTF font load (${retryCount}/${maxRetries})...`);
+              setTimeout(attemptLoad, 1000 * retryCount); // 지수적 백오프
+            } else {
+              reject(new Error(`TTF Font loading failed after ${maxRetries} attempts: ${error.message}`));
+            }
+          }
+        );
+      };
+      
+      attemptLoad();
+    });
   }
 
   /**
@@ -150,12 +166,6 @@ export class TextRenderer {
    */
   private loadFont(fontUrl: string): Promise<any> {
     return new Promise((resolve, reject) => {
-      if (!this.fontLoader) {
-        console.warn('FontLoader not available for loading:', fontUrl);
-        reject(new Error('FontLoader not initialized'));
-        return;
-      }
-      
       let retryCount = 0;
       const maxRetries = 3;
       
@@ -163,18 +173,19 @@ export class TextRenderer {
         this.fontLoader.load(
           fontUrl,
           (font: any) => {
-            console.log(`Font loaded successfully: ${fontUrl}`);
+            console.log(`✅ Font loaded successfully: ${fontUrl}`);
             resolve(font);
           },
           (progress: ProgressEvent) => {
-            console.log(`Loading font ${fontUrl}: ${(progress.loaded / progress.total * 100).toFixed(1)}%`);
+            console.log(`📥 Loading font ${fontUrl}: ${(progress.loaded / progress.total * 100).toFixed(1)}%`);
           },
-          (error: Error) => {
-            console.warn(`Font load attempt ${retryCount + 1} failed for ${fontUrl}:`, error);
+          (err: unknown) => {
+            const error = err as Error;
+            console.warn(`❌ Font load attempt ${retryCount + 1} failed for ${fontUrl}:`, error);
             
             if (retryCount < maxRetries) {
               retryCount++;
-              console.log(`Retrying font load (${retryCount}/${maxRetries})...`);
+              console.log(`🔄 Retrying font load (${retryCount}/${maxRetries})...`);
               setTimeout(attemptLoad, 1000 * retryCount); // 지수적 백오프
             } else {
               reject(new Error(`Font loading failed after ${maxRetries} attempts: ${error.message}`));
@@ -192,10 +203,11 @@ export class TextRenderer {
    * @param config 텍스트 설정
    * @returns Promise<THREE.Mesh>
    */
-  public updateText(config: TextConfig): Promise<THREE.Mesh> {
-    // 초기화 상태 체크
+  public async updateText(config: TextConfig): Promise<THREE.Mesh> {
+    // 초기화 완료 대기
     if (!this.isInitialized) {
-      return Promise.reject(new Error('TextRenderer not initialized yet'));
+      console.log('⏳ TextRenderer not initialized yet, waiting...');
+      await this.waitForInitialization();
     }
 
     // 기존 타이머 취소
@@ -228,29 +240,23 @@ export class TextRenderer {
     this.isLoading = true;
 
     try {
-      console.log('Creating text with config:', config);
+      console.log('🔧 Creating text with config:', config);
 
       // 이전 텍스트 정리 (메모리 누수 방지)
       this.disposeCurrentText();
 
       let textGeometry: THREE.BufferGeometry;
       
-      if (!this.TextGeometry || this.TextGeometry === THREE.BoxGeometry) {
-        // Fallback: BoxGeometry 사용
-        console.log('Using fallback BoxGeometry for text');
-        textGeometry = new THREE.BoxGeometry(
-          (config.text?.length || 5) * (config.fontSize || 4) * 0.6, // 너비
-          config.fontSize || 4, // 높이  
-          config.depth || 0.5 // 깊이
-        );
-      } else {
+      // 폰트 로드 시도
+      const font = await this.getFont(config.fontFamily || 'helvetiker');
+      
+      if (font) {
         // 정상: TextGeometry 사용
-        const font = await this.getFont(config.fontFamily || 'helvetiker');
-        
-        textGeometry = new this.TextGeometry(config.text || 'HELLO', {
+        console.log(`📝 Using TextGeometry for text "${config.text}"`);
+        textGeometry = new TextGeometry(config.text || '안녕하세요', {
           font: font,
           size: config.fontSize || 4,
-          height: config.depth || 0.5, // 실제 3D 두께
+          depth: config.depth || 0.5, // Three.js r178에서 depth 사용
           curveSegments: 12,
           bevelEnabled: true,
           bevelThickness: 0.03,
@@ -258,6 +264,20 @@ export class TextRenderer {
           bevelOffset: 0,
           bevelSegments: 5
         });
+      } else {
+        // Fallback: 개별 글자 3D 박스들
+        console.log(`🔤 Creating individual character boxes for "${config.text}"`);
+        const characterBoxMesh = this.createCharacterBoxes(config);
+        
+        // textMesh 참조 저장 (기존 인터페이스 호환)
+        this.textMesh = characterBoxMesh;
+        
+        // 설정 저장
+        this.currentConfig = { ...config };
+        this.isLoading = false;
+        
+        console.log('✅ Character boxes created successfully');
+        return characterBoxMesh;
       }
 
       // 텍스트 중앙 정렬
@@ -277,15 +297,15 @@ export class TextRenderer {
       this.textMesh = new THREE.Mesh(textGeometry, material);
       
       // 위치 및 회전 설정
-      if (config.position) {
+      if (config.position && this.textMesh) {
         this.textMesh.position.set(config.position.x, config.position.y, config.position.z);
       }
       
-      if (config.rotation) {
+      if (config.rotation && this.textMesh) {
         this.textMesh.rotation.set(config.rotation.x, config.rotation.y, config.rotation.z);
       }
       
-      if (config.scale) {
+      if (config.scale && this.textMesh) {
         this.textMesh.scale.set(config.scale.x, config.scale.y, config.scale.z);
       }
 
@@ -293,12 +313,159 @@ export class TextRenderer {
       this.currentConfig = { ...config };
       this.isLoading = false;
 
-      console.log('TextGeometry created successfully');
-      return this.textMesh;
+      console.log('✅ TextGeometry created successfully');
+      return this.textMesh!;
     } catch (error) {
       this.isLoading = false;
-      console.error('Failed to create text:', error);
+      console.error('❌ Failed to create text:', error);
       throw new Error(`Failed to create text: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * 개별 글자 3D 박스들 생성
+   * @param config 텍스트 설정
+   * @returns THREE.Mesh (그룹으로 반환)
+   */
+  private createCharacterBoxes(config: TextConfig): THREE.Mesh {
+    const text = config.text || '안녕하세요';
+    const fontSize = config.fontSize || 4;
+    const depth = config.depth || 0.5;
+    
+    // 글자 그룹 생성
+    const textGroup = new THREE.Group();
+    
+    let currentX = 0;
+    const charSpacing = fontSize * 0.1; // 글자 간격
+    
+    // 모든 머티리얼을 저장할 배열 (나중에 정리용)
+    const materials: THREE.Material[] = [];
+    
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      
+      // 공백 처리
+      if (char === ' ') {
+        currentX += fontSize * 0.5;
+        continue;
+      }
+      
+      // 개별 글자 박스 생성
+      const charGeometry = this.createSingleCharacterBox(char, fontSize, depth);
+      const charMaterial = new THREE.MeshPhongMaterial({
+        color: config.color || '#ffffff',
+        shininess: 100,
+        specular: 0x111111
+      });
+      
+      materials.push(charMaterial);
+      
+      const charMesh = new THREE.Mesh(charGeometry, charMaterial);
+      
+      // 글자 위치 설정
+      charMesh.position.x = currentX;
+      textGroup.add(charMesh);
+      
+      // 다음 글자 위치 계산
+      const charWidth = this.getCharacterWidth(char, fontSize);
+      currentX += charWidth + charSpacing;
+    }
+    
+    // 전체 텍스트 중앙 정렬
+    const totalWidth = currentX - charSpacing;
+    textGroup.position.x = -totalWidth / 2;
+    
+    // 머티리얼과 지오메트리를 가진 더미 메시 생성 (기존 인터페이스 호환)
+    const dummyGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+    const dummyMaterial = new THREE.MeshPhongMaterial({ visible: false });
+    const containerMesh = new THREE.Mesh(dummyGeometry, dummyMaterial);
+    
+    // 텍스트 그룹을 더미 메시에 추가
+    containerMesh.add(textGroup);
+    
+    // 위치 및 회전 설정 적용
+    if (config.position) {
+      containerMesh.position.set(config.position.x, config.position.y, config.position.z);
+    }
+    
+    if (config.rotation) {
+      containerMesh.rotation.set(config.rotation.x, config.rotation.y, config.rotation.z);
+    }
+    
+    if (config.scale) {
+      containerMesh.scale.set(config.scale.x, config.scale.y, config.scale.z);
+    }
+    
+    // textGroup을 userData에 저장하여 나중에 접근 가능하도록 함
+    containerMesh.userData.textGroup = textGroup;
+    containerMesh.userData.materials = materials;
+    
+    return containerMesh;
+  }
+
+  /**
+   * 개별 글자 박스 생성
+   * @param char 문자
+   * @param fontSize 폰트 크기
+   * @param depth 깊이
+   * @returns THREE.BufferGeometry
+   */
+  private createSingleCharacterBox(char: string, fontSize: number, depth: number): THREE.BufferGeometry {
+    const charWidth = this.getCharacterWidth(char, fontSize);
+    const height = fontSize;
+    
+    // 둥근 모서리가 있는 개별 글자 박스
+    const shape = new THREE.Shape();
+    const radius = Math.min(height * 0.1, depth * 0.2);
+    
+    const x = -charWidth / 2;
+    const y = -height / 2;
+    
+    shape.moveTo(x + radius, y);
+    shape.lineTo(x + charWidth - radius, y);
+    shape.quadraticCurveTo(x + charWidth, y, x + charWidth, y + radius);
+    shape.lineTo(x + charWidth, y + height - radius);
+    shape.quadraticCurveTo(x + charWidth, y + height, x + charWidth - radius, y + height);
+    shape.lineTo(x + radius, y + height);
+    shape.quadraticCurveTo(x, y + height, x, y + height - radius);
+    shape.lineTo(x, y + radius);
+    shape.quadraticCurveTo(x, y, x + radius, y);
+    
+    const extrudeSettings = {
+      depth: depth,
+      bevelEnabled: true,
+      bevelThickness: depth * 0.1,
+      bevelSize: radius * 0.3,
+      bevelSegments: 2
+    };
+    
+    return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  }
+
+  /**
+   * 문자별 너비 계산
+   * @param char 문자
+   * @param fontSize 폰트 크기
+   * @returns 문자 너비
+   */
+  private getCharacterWidth(char: string, fontSize: number): number {
+    // 한글과 영어 구분
+    const isKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(char);
+    
+    if (isKorean) {
+      return fontSize * 0.9; // 한글은 더 넓게
+    } else {
+      // 영어 문자별 너비 조정
+      const wideChars = /[mwMW]/.test(char);
+      const narrowChars = /[iltjfI]/.test(char);
+      
+      if (wideChars) {
+        return fontSize * 0.8;
+      } else if (narrowChars) {
+        return fontSize * 0.4;
+      } else {
+        return fontSize * 0.6; // 기본 영어 문자
+      }
     }
   }
 
@@ -308,38 +475,66 @@ export class TextRenderer {
    * @returns Promise<any>
    */
   private async getFont(fontFamily: string): Promise<any> {
-    // FontLoader가 없는 경우 (fallback 모드)
-    if (!this.fontLoader) {
-      console.log('FontLoader not available, returning null font');
-      return null;
-    }
-
     // 이미 로드된 폰트가 있으면 사용
     const loadedFont = this.loadedFonts.get(fontFamily);
     if (loadedFont) {
-      console.log(`Using cached font: ${fontFamily}`);
+      console.log(`📁 Using cached font: ${fontFamily}`);
       return loadedFont;
     }
 
-    // 기본 폰트 매핑
-    const fontMap: Record<string, string> = {
-      'helvetiker': 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
-      'optimer': 'https://threejs.org/examples/fonts/optimer_regular.typeface.json',
-      'sans-serif': 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
-      'serif': 'https://threejs.org/examples/fonts/optimer_regular.typeface.json',
-      'monospace': 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json'
+    // 기본 폰트 매핑 (TTF와 JSON 모두 지원)
+    const fontMap: Record<string, { url: string; type: 'ttf' | 'json' }> = {
+      'cookierun-bold': {
+        url: '/fonts/CookieRun-Bold.ttf',
+        type: 'ttf'
+      },
+      'nanum-gothic': {
+        url: '/fonts/NanumGothic-Regular.ttf',
+        type: 'ttf'
+      },
+      'noto-sans-kr': {
+        url: '/fonts/NotoSansKR-Regular.ttf',
+        type: 'ttf'
+      },
+      'helvetiker': {
+        url: 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
+        type: 'json'
+      },
+      'optimer': {
+        url: 'https://threejs.org/examples/fonts/optimer_regular.typeface.json',
+        type: 'json'
+      },
+      'sans-serif': {
+        url: 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
+        type: 'json'
+      },
+      'serif': {
+        url: 'https://threejs.org/examples/fonts/optimer_regular.typeface.json',
+        type: 'json'
+      },
+      'monospace': {
+        url: 'https://threejs.org/examples/fonts/helvetiker_regular.typeface.json',
+        type: 'json'
+      }
     };
 
-    const fontUrl = fontMap[fontFamily] || fontMap['helvetiker'];
+    const fontInfo = fontMap[fontFamily] || fontMap['helvetiker'];
     
     try {
-      console.log(`Loading font: ${fontFamily} from ${fontUrl}`);
-      const font = await this.loadFont(fontUrl);
+      console.log(`📥 Loading font: ${fontFamily} from ${fontInfo.url} (${fontInfo.type})`);
+      
+      let font;
+      if (fontInfo.type === 'ttf') {
+        font = await this.loadTTFFont(fontInfo.url);
+      } else {
+        font = await this.loadFont(fontInfo.url);
+      }
+      
       this.loadedFonts.set(fontFamily, font);
-      console.log(`Font ${fontFamily} loaded successfully`);
+      console.log(`✅ Font ${fontFamily} loaded successfully`);
       return font;
     } catch (error) {
-      console.warn(`Failed to load font ${fontFamily}:`, error);
+      console.warn(`❌ Failed to load font ${fontFamily}:`, error);
       
       // Fallback 순서: helvetiker -> optimer -> 첫 번째 로드된 폰트
       const fallbackOrder = ['helvetiker', 'optimer'];
@@ -347,7 +542,7 @@ export class TextRenderer {
       for (const fallbackName of fallbackOrder) {
         const fallbackFont = this.loadedFonts.get(fallbackName);
         if (fallbackFont) {
-          console.log(`Using fallback font: ${fallbackName}`);
+          console.log(`🔄 Using fallback font: ${fallbackName}`);
           return fallbackFont;
         }
       }
@@ -355,11 +550,13 @@ export class TextRenderer {
       // 마지막으로 아무 폰트나 사용
       const anyFont = this.loadedFonts.values().next().value;
       if (anyFont) {
-        console.log('Using any available font as last resort');
+        console.log('🔄 Using any available font as last resort');
         return anyFont;
       }
       
-      throw new Error('No fonts available - font loading system failed');
+      // 폰트가 없으면 null 반환 (BoxGeometry 사용)
+      console.warn('⚠️ No fonts available - using fallback BoxGeometry');
+      return null;
     }
   }
 
@@ -368,12 +565,38 @@ export class TextRenderer {
    */
   private disposeCurrentText(): void {
     if (this.textMesh) {
-      console.log('Disposing current text mesh...');
+      console.log('🧹 Disposing current text mesh...');
+      
+      // 개별 글자 박스들 정리 (userData에 저장된 경우)
+      if (this.textMesh.userData.textGroup) {
+        const textGroup = this.textMesh.userData.textGroup as THREE.Group;
+        textGroup.traverse((child: any) => {
+          if (child instanceof THREE.Mesh) {
+            if (child.geometry) {
+              child.geometry.dispose();
+            }
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach((mat: any) => mat.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+          }
+        });
+        console.log('✅ Character boxes disposed');
+      }
+      
+      // userData에 저장된 머티리얼들 정리
+      if (this.textMesh.userData.materials) {
+        const materials = this.textMesh.userData.materials as THREE.Material[];
+        materials.forEach((material) => material.dispose());
+      }
       
       // 지오메트리 정리
       if (this.textMesh.geometry) {
         this.textMesh.geometry.dispose();
-        console.log('Text geometry disposed');
+        console.log('✅ Text geometry disposed');
       }
 
       // 머티리얼 정리
@@ -382,13 +605,13 @@ export class TextRenderer {
           this.textMesh.material.forEach((material: THREE.Material) => {
             // 텍스처 정리 (타입 안전성 고려)
             const mat = material as any;
-            if (mat.map) {
+            if (mat.map && mat.map.dispose) {
               mat.map.dispose();
             }
-            if (mat.normalMap) {
+            if (mat.normalMap && mat.normalMap.dispose) {
               mat.normalMap.dispose();
             }
-            if (mat.roughnessMap) {
+            if (mat.roughnessMap && mat.roughnessMap.dispose) {
               mat.roughnessMap.dispose();
             }
             material.dispose();
@@ -396,22 +619,22 @@ export class TextRenderer {
         } else {
           // 텍스처 정리 (타입 안전성 고려)
           const mat = this.textMesh.material as any;
-          if (mat.map) {
+          if (mat.map && mat.map.dispose) {
             mat.map.dispose();
           }
-          if (mat.normalMap) {
+          if (mat.normalMap && mat.normalMap.dispose) {
             mat.normalMap.dispose();
           }
-          if (mat.roughnessMap) {
+          if (mat.roughnessMap && mat.roughnessMap.dispose) {
             mat.roughnessMap.dispose();
           }
           this.textMesh.material.dispose();
         }
-        console.log('Text material disposed');
+        console.log('✅ Text material disposed');
       }
 
       this.textMesh = null;
-      console.log('Text mesh disposed successfully');
+      console.log('✅ Text mesh disposed successfully');
     }
   }
 
@@ -458,37 +681,10 @@ export class TextRenderer {
   }
 
   /**
-   * 초기화 완료 대기
-   * @returns 초기화 완료 Promise
-   */
-  public waitForInitialization(): Promise<void> {
-    if (this.isInitialized) {
-      return Promise.resolve();
-    }
-
-    return new Promise((resolve, reject) => {
-      const checkInitialization = () => {
-        if (this.isInitialized) {
-          resolve();
-        } else {
-          setTimeout(checkInitialization, 100);
-        }
-      };
-      
-      // 최대 10초 대기
-      setTimeout(() => {
-        reject(new Error('TextRenderer initialization timeout'));
-      }, 10000);
-      
-      checkInitialization();
-    });
-  }
-
-  /**
    * 리소스 정리 (메모리 누수 방지)
    */
   public dispose(): void {
-    console.log('TextRenderer disposing...');
+    console.log('🧹 TextRenderer disposing...');
     
     // 대기 중인 업데이트 취소
     this.cancelPendingUpdate();
@@ -503,10 +699,7 @@ export class TextRenderer {
     this.currentConfig = null;
     this.isLoading = false;
     this.isInitialized = false;
-    this.fontLoader = null;
-    this.FontLoader = null;
-    this.TextGeometry = null;
     
-    console.log('TextRenderer disposed successfully');
+    console.log('✅ TextRenderer disposed successfully');
   }
 }

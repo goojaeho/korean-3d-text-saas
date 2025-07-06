@@ -22,7 +22,7 @@
 - **TailwindCSS 3.4**
 - **Zustand 5.0.6** (클라이언트 상태)
 - **TanStack Query 5.81.5** (서버 상태)
-- **Three.js r178** + **Troika-three-text**
+- **Three.js r178** + **TextGeometry**
 - **Next-Auth 5.0** (인증)
 
 ### Backend & 인프라
@@ -124,6 +124,13 @@ npm run lint
 npm run format
 ```
 
+## 🚨 중요 개발 규칙
+
+### 서버 실행 금지
+- **절대 금지**: `npm run dev`, `npm start`, `next dev` 등 개발 서버 실행 명령어 사용
+- **이유**: 사용자가 직접 서버를 관리하므로 Claude가 서버를 실행하지 않음
+- **예외**: 빌드, 테스트, 린트 등 서버 실행이 아닌 명령어는 허용
+
 ## 🛠️ 기술 스택 규칙
 
 ### Frontend 필수 사용
@@ -139,7 +146,7 @@ npm run format
 - **Next-Auth 5.0**: 커스텀 JWT 금지
 
 ### 3D 렌더링 필수 사용
-- **Three.js r178 + Troika-three-text**: 다른 3D 라이브러리 금지
+- **Three.js r178 + TextGeometry**: 다른 3D 라이브러리 금지
 - **디바운싱 패턴**: 실시간 렌더링 금지
 - **메모리 정리 패턴**: 메모리 누수 방지 필수
 

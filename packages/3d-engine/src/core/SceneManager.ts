@@ -5,21 +5,69 @@ import * as THREE from 'three';
  * Three.js 씬, 카메라, 렌더러를 관리합니다
  */
 export class SceneManager {
-  private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
-  private renderer: THREE.WebGLRenderer | null = null;
+  private scene: any = null; // THREE.Scene
+  private camera: any = null; // THREE.PerspectiveCamera
+  private renderer: any = null; // THREE.WebGLRenderer
   private isInitialized = false;
 
   constructor() {
-    this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
-    this.setupScene();
+    this.initializeSceneManager();
+  }
+
+  /**
+   * SceneManager 초기화
+   */
+  private initializeSceneManager(): void {
+    console.log('🚀 SceneManager initializing...');
+    
+    try {
+      // Three.js 객체들 초기화
+      this.scene = new THREE.Scene();
+      this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+      this.setupScene();
+      console.log('✅ SceneManager initialized successfully');
+      
+      this.isInitialized = true;
+    } catch (error) {
+      console.error('❌ SceneManager initialization failed:', error);
+      this.isInitialized = true; // 실패해도 진행
+    }
+  }
+
+  /**
+   * 초기화 완료 대기
+   */
+  public waitForInitialization(): Promise<void> {
+    return new Promise((resolve) => {
+      if (this.isInitialized) {
+        resolve();
+        return;
+      }
+
+      const checkInterval = setInterval(() => {
+        if (this.isInitialized) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+
+      // 5초 타임아웃
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        console.warn('SceneManager initialization timeout');
+        resolve();
+      }, 5000);
+    });
   }
 
   /**
    * 씬 초기 설정
    */
   private setupScene(): void {
+    if (!this.scene) {
+      console.warn('⚠️ Cannot setup scene - scene not available');
+      return;
+    }
     // 배경색 설정 (더 어두운 색상으로 3D 객체가 잘 보이도록)
     this.scene.background = new THREE.Color(0x222222);
 
@@ -67,7 +115,14 @@ export class SceneManager {
    * @param height 캔버스 높이
    */
   public initialize(canvas: HTMLCanvasElement, width: number, height: number): void {
-    if (this.isInitialized) {
+    // 초기화 확인
+    if (!this.isInitialized) {
+      console.warn('⚠️ SceneManager not initialized yet');
+      return;
+    }
+
+
+    if (this.renderer) {
       this.dispose();
     }
 
@@ -84,10 +139,12 @@ export class SceneManager {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     // 카메라 종횡비 업데이트
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
+    if (this.camera) {
+      this.camera.aspect = width / height;
+      this.camera.updateProjectionMatrix();
+    }
 
-    this.isInitialized = true;
+    console.log('✅ Renderer initialized successfully');
   }
 
   /**
@@ -136,22 +193,49 @@ export class SceneManager {
    * @param object 제거할 3D 객체
    */
   public removeObject(object: THREE.Object3D): void {
+    // null 체크 추가
+    if (!object) {
+      console.warn('Cannot remove null or undefined object from scene');
+      return;
+    }
+
+    // 자식 객체들도 모두 제거
+    try {
+      object.traverse((child: THREE.Object3D) => {
+        if (child.parent) {
+          child.parent.remove(child);
+        }
+      });
+    } catch (error) {
+      console.warn('Error traversing object during removal:', error);
+    }
+    
     this.scene.remove(object);
+    
+    // 제거 후 렌더링
+    if (this.renderer) {
+      this.render();
+    }
   }
 
   /**
    * 씬의 모든 객체 제거 (조명 제외)
    */
   public clearObjects(): void {
-    const objectsToRemove: THREE.Object3D[] = [];
+    if (!this.scene) {
+      console.warn('⚠️ Cannot clear objects - scene not available');
+      return;
+    }
+
+    const objectsToRemove: any[] = [];
     
-    this.scene.traverse((child) => {
+    this.scene.traverse((child: any) => {
       if (!(child instanceof THREE.Light) && child !== this.scene) {
         objectsToRemove.push(child);
       }
     });
 
-    objectsToRemove.forEach((object) => {
+    objectsToRemove.forEach((object: any) => {
       this.scene.remove(object);
       this.disposeObject(object);
     });
@@ -161,19 +245,25 @@ export class SceneManager {
    * 객체 메모리 정리
    * @param object 정리할 객체
    */
-  private disposeObject(object: THREE.Object3D): void {
+  private disposeObject(object: any): void {
     if (object instanceof THREE.Mesh) {
       if (object.geometry) {
         object.geometry.dispose();
       }
       if (object.material) {
         if (Array.isArray(object.material)) {
-          object.material.forEach((material) => {
-            if (material.map) material.map.dispose();
+          object.material.forEach((material: any) => {
+            const mat = material as any;
+            if (mat.map && mat.map.dispose) mat.map.dispose();
+            if (mat.normalMap && mat.normalMap.dispose) mat.normalMap.dispose();
+            if (mat.roughnessMap && mat.roughnessMap.dispose) mat.roughnessMap.dispose();
             material.dispose();
           });
         } else {
-          if (object.material.map) object.material.map.dispose();
+          const mat = object.material as any;
+          if (mat.map && mat.map.dispose) mat.map.dispose();
+          if (mat.normalMap && mat.normalMap.dispose) mat.normalMap.dispose();
+          if (mat.roughnessMap && mat.roughnessMap.dispose) mat.roughnessMap.dispose();
           object.material.dispose();
         }
       }

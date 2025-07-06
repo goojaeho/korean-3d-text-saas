@@ -230,7 +230,8 @@ class SceneManager {
 
 // packages/3d-engine/core/TextRenderer.ts
 class TextRenderer {
-  private textMesh: troika.Text
+  private textMesh: THREE.Mesh
+  private textGeometry: THREE.TextGeometry
   private config: TextConfig
   
   createText(config: TextConfig): Promise<void>
@@ -744,7 +745,7 @@ interface TextRendererProps {
 
 #### 3D 렌더링 규칙
 
-- Three.js r178 + Troika-three-text로만 구현 (다른 3D 라이브러리 금지)
+- Three.js r178로만 구현 (FontLoader + TextGeometry 사용)
 - 디바운싱 패턴으로 성능 최적화 (실시간 렌더링 금지)
 - 메모리 정리 패턴 필수 구현 (메모리 누수 방지)
 
@@ -909,7 +910,7 @@ const MyComponent = () => {
 - **TailwindCSS 3.4**
 - **Zustand 5.0.6** (클라이언트 상태)
 - **TanStack Query 5.81.5** (서버 상태)
-- **Three.js r178** + **Troika-three-text**
+- **Three.js r178** (FontLoader + TextGeometry)
 - **Next-Auth 5.0** (인증)
 
 ### Backend & 인프라
