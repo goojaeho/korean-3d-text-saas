@@ -39,22 +39,71 @@ export class TextRenderer {
   }
 
   /**
-   * 로더들 초기화 (동적 import 사용)
+   * 로더들 초기화 (CDN 방식)
    */
   private async initializeLoaders(): Promise<void> {
     try {
-      const fontLoaderModule = await import('three/examples/jsm/loaders/FontLoader' as any);
-      const textGeometryModule = await import('three/examples/jsm/geometries/TextGeometry' as any);
+      // CDN에서 Three.js examples 스크립트 로드
+      await this.loadThreeExamples();
       
-      this.FontLoader = fontLoaderModule.FontLoader;
-      this.TextGeometry = textGeometryModule.TextGeometry;
-      this.fontLoader = new this.FontLoader();
+      // FontLoader와 TextGeometry 글로벌에서 가져오기
+      const THREE_GLOBAL = (globalThis as any).THREE || (window as any).THREE;
       
-      await this.preloadFonts();
-      this.isInitialized = true;
+      if (THREE_GLOBAL && THREE_GLOBAL.FontLoader && THREE_GLOBAL.TextGeometry) {
+        this.FontLoader = THREE_GLOBAL.FontLoader;
+        this.TextGeometry = THREE_GLOBAL.TextGeometry;
+        this.fontLoader = new this.FontLoader();
+        
+        await this.preloadFonts();
+        this.isInitialized = true;
+        console.log('TextRenderer initialized successfully');
+      } else {
+        // Fallback: 간단한 구현으로 대체
+        throw new Error('Three.js examples not available, using fallback');
+      }
     } catch (error) {
-      console.error('Failed to initialize loaders:', error);
+      console.warn('Failed to initialize Three.js examples, using fallback:', error);
+      await this.initializeFallback();
     }
+  }
+
+  /**
+   * Three.js examples CDN 로드
+   */
+  private loadThreeExamples(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // 이미 로드되었는지 확인
+      if ((globalThis as any).THREE?.FontLoader) {
+        resolve();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/three@0.160.0/examples/js/loaders/FontLoader.js';
+      script.onload = () => {
+        const script2 = document.createElement('script');
+        script2.src = 'https://unpkg.com/three@0.160.0/examples/js/geometries/TextGeometry.js';
+        script2.onload = () => resolve();
+        script2.onerror = () => reject(new Error('Failed to load TextGeometry'));
+        document.head.appendChild(script2);
+      };
+      script.onerror = () => reject(new Error('Failed to load FontLoader'));
+      document.head.appendChild(script);
+    });
+  }
+
+  /**
+   * Fallback 초기화 (간단한 박스 지오메트리 사용)
+   */
+  private async initializeFallback(): Promise<void> {
+    console.log('Using fallback text renderer');
+    
+    // 간단한 박스로 텍스트 대체
+    this.FontLoader = null;
+    this.TextGeometry = THREE.BoxGeometry;
+    this.fontLoader = null;
+    
+    this.isInitialized = true;
   }
 
   /**
@@ -102,6 +151,7 @@ export class TextRenderer {
   private loadFont(fontUrl: string): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.fontLoader) {
+        console.warn('FontLoader not available for loading:', fontUrl);
         reject(new Error('FontLoader not initialized'));
         return;
       }
@@ -183,25 +233,32 @@ export class TextRenderer {
       // 이전 텍스트 정리 (메모리 누수 방지)
       this.disposeCurrentText();
 
-      // 폰트 가져오기
-      const font = await this.getFont(config.fontFamily || 'helvetiker');
+      let textGeometry: THREE.BufferGeometry;
       
-      // TextGeometry 생성
-      if (!this.TextGeometry) {
-        throw new Error('TextGeometry not initialized');
+      if (!this.TextGeometry || this.TextGeometry === THREE.BoxGeometry) {
+        // Fallback: BoxGeometry 사용
+        console.log('Using fallback BoxGeometry for text');
+        textGeometry = new THREE.BoxGeometry(
+          (config.text?.length || 5) * (config.fontSize || 4) * 0.6, // 너비
+          config.fontSize || 4, // 높이  
+          config.depth || 0.5 // 깊이
+        );
+      } else {
+        // 정상: TextGeometry 사용
+        const font = await this.getFont(config.fontFamily || 'helvetiker');
+        
+        textGeometry = new this.TextGeometry(config.text || 'HELLO', {
+          font: font,
+          size: config.fontSize || 4,
+          height: config.depth || 0.5, // 실제 3D 두께
+          curveSegments: 12,
+          bevelEnabled: true,
+          bevelThickness: 0.03,
+          bevelSize: 0.02,
+          bevelOffset: 0,
+          bevelSegments: 5
+        });
       }
-      
-      const textGeometry = new this.TextGeometry(config.text || 'HELLO', {
-        font: font,
-        size: config.fontSize || 4,
-        height: config.depth || 0.5, // 실제 3D 두께
-        curveSegments: 12,
-        bevelEnabled: true,
-        bevelThickness: 0.03,
-        bevelSize: 0.02,
-        bevelOffset: 0,
-        bevelSegments: 5
-      });
 
       // 텍스트 중앙 정렬
       textGeometry.computeBoundingBox();
@@ -251,6 +308,12 @@ export class TextRenderer {
    * @returns Promise<any>
    */
   private async getFont(fontFamily: string): Promise<any> {
+    // FontLoader가 없는 경우 (fallback 모드)
+    if (!this.fontLoader) {
+      console.log('FontLoader not available, returning null font');
+      return null;
+    }
+
     // 이미 로드된 폰트가 있으면 사용
     const loadedFont = this.loadedFonts.get(fontFamily);
     if (loadedFont) {
